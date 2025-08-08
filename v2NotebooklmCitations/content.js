@@ -70,8 +70,15 @@
     if (isMapping) return;
     isMapping = true;
     try {
-    // 1. Find all citation buttons
-    const buttons = document.querySelectorAll('button.citation-marker');
+    // 1. Find all citation buttons (broader selector to handle UI changes)
+    const buttons = Array.from(document.querySelectorAll('button.citation-marker'))
+      .concat(Array.from(document.querySelectorAll('button[class*="citation"]')))
+      .concat(
+        Array.from(document.querySelectorAll('button')).filter(btn => {
+          const txt = btn.textContent.trim();
+          return /^\d+$/.test(txt);
+        })
+      );
     const citationEntries = [];
     
     // Helper: Wait for element matching selector to appear
@@ -95,10 +102,19 @@
     }
 
     // Helper: Close the source panel if possible
-    function closeSourcePanel() {
+    async function closeSourcePanel() {
       // Try to find a close button in the panel
-      const closeBtn = document.querySelector('button[aria-label="Schließen"], button[aria-label="Close"]');
-      if (closeBtn) closeBtn.click();
+      const closeBtn = document.querySelector(
+        'button[aria-label="Schließen"], button[aria-label="Close"], button[aria-label*="schließen" i], button[aria-label*="close" i]'
+      );
+      if (closeBtn) {
+        closeBtn.click();
+      } else {
+        // Fallback: press Escape to close dialog
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      }
+      // Wait for panel to disappear
+      await new Promise(res => setTimeout(res, 200));
     }
 
     // Schritt für Schritt: Für jede eindeutige Zitatnummer nur den ersten Button klicken und Überschrift extrahieren
@@ -141,8 +157,8 @@
           }
         }
       }
-      closeSourcePanel();
-      await new Promise(res => setTimeout(res, 300));
+      await closeSourcePanel();
+      await new Promise(res => setTimeout(res, 200));
 
       citationEntries.push({
         citationNumber,
