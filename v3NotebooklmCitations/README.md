@@ -14,7 +14,6 @@ This Chrome extension was developed to map citation numbers to source filenames 
 - Displays a draggable, minimisable, resizable legend window on the page for quick copy.
 - Popup can copy current mappings or trigger a rescan of the page.
 
-
 ## Weaknesses / Why it doesn't fully work
 
 - The mapping between citation numbers and source files is unreliable and often breaks if NotebookLM's DOM or class names change.

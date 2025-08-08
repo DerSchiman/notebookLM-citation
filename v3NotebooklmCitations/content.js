@@ -94,9 +94,23 @@
       document.body.appendChild(overlay);
 
       minBtn.onclick = () => {
-        const isHidden = content.style.display === 'none';
-        content.style.display = isHidden ? 'block' : 'none';
-        minBtn.textContent = isHidden ? '–' : '+';
+        const isCollapsed = content.style.display === 'none';
+        if (isCollapsed) {
+          content.style.display = 'block';
+          overlay.style.height = overlay.dataset.prevHeight || '300px';
+          overlay.style.minHeight = '100px';
+          overlay.style.resize = overlay.dataset.prevResize || 'both';
+          minBtn.textContent = '–';
+        } else {
+          overlay.dataset.prevHeight = overlay.style.height;
+          overlay.dataset.prevResize = overlay.style.resize;
+          content.style.display = 'none';
+          const headerHeight = header.offsetHeight;
+          overlay.style.height = headerHeight + 'px';
+          overlay.style.minHeight = headerHeight + 'px';
+          overlay.style.resize = 'none';
+          minBtn.textContent = '+';
+        }
       };
 
       let dragOffsetX = 0;
