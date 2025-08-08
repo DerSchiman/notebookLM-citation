@@ -2,6 +2,7 @@
 
 (function () {
   let isMapping = false;
+  let currentMappings = [];
 
   function copyText(text) {
     return navigator.clipboard.writeText(text).catch(() => {
@@ -32,9 +33,15 @@
       overlay.style.borderRadius = '8px';
       overlay.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
       overlay.style.fontFamily = 'Arial, sans-serif';
-      overlay.style.fontSize = '14px';
-      overlay.style.maxWidth = '350px';
-      overlay.style.maxHeight = '300px';
+      overlay.style.fontSize = '16px';
+      overlay.style.color = '#222';
+      overlay.style.width = '350px';
+      overlay.style.height = '300px';
+      overlay.style.minWidth = '200px';
+      overlay.style.minHeight = '100px';
+      overlay.style.display = 'flex';
+      overlay.style.flexDirection = 'column';
+      overlay.style.resize = 'both';
       overlay.style.overflow = 'hidden';
 
       const header = document.createElement('div');
@@ -62,7 +69,7 @@
 
       const content = document.createElement('div');
       content.style.padding = '8px 16px 16px 16px';
-      content.style.maxHeight = '260px';
+      content.style.flex = '1 1 auto';
       content.style.overflowY = 'auto';
 
       const copyBtn = document.createElement('button');
@@ -143,8 +150,12 @@
       });
       const sortedCitationNumbers = Object.keys(uniqueCitations)
         .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-      const legendLines = sortedCitationNumbers.map(
-        n => `Citation ${n} → ${uniqueCitations[n]}`
+      currentMappings = sortedCitationNumbers.map(n => ({
+        citation: n,
+        filename: uniqueCitations[n],
+      }));
+      const legendLines = currentMappings.map(
+        m => `Citation ${m.citation} → ${m.filename}`
       );
       const legendText = legendLines.length
         ? 'Citation Mapping Legend\n=====================\n' + legendLines.join('\n')
@@ -176,6 +187,17 @@
       subtree: true,
     });
   }
+
+  chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+    if (request.action === 'getMappings') {
+      sendResponse({ mappings: currentMappings });
+    } else if (request.action === 'rescan' || request.action === 'showMappings') {
+      mapCitations().then(() => {
+        sendResponse({ mappings: currentMappings });
+      });
+      return true;
+    }
+  });
 
   setTimeout(() => {
     mapCitations();
