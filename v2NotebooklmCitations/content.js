@@ -62,7 +62,6 @@
     }
   }
 
-
   // Main: Map citations to sources
   async function mapCitations() {
     if (isMapping) return;
