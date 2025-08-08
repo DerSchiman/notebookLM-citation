@@ -60,12 +60,9 @@ class NotebookLMCitationMapper {
 
     console.log(`Found ${citationButtons.length} citation buttons`);
 
-    
-
     citationButtons.forEach(button => {
-
+      if (button.getAttribute('data-citation-processed') === 'true') return;
       this.processCitationButton(button);
-
     });
 
   }
@@ -75,6 +72,8 @@ class NotebookLMCitationMapper {
   processCitationButton(button) {
 
     try {
+
+      if (button.getAttribute('data-citation-processed') === 'true') return;
 
       // Extract visible citation number
 
@@ -103,6 +102,8 @@ class NotebookLMCitationMapper {
         console.log(`Mapped citation ${citationNumber} to:`, sourceInfo);
 
       } else {
+
+        this.citationMap.set(citationNumber, { filename: 'Unknown', type: 'unmapped' });
 
         console.warn(`Could not extract source info for citation ${citationNumber}`);
 
@@ -645,45 +646,30 @@ class NotebookLMCitationMapper {
     this.observer = new MutationObserver((mutations) => {
 
       if (this.isProcessing) return;
-
-      
-
       this.isProcessing = true;
 
       setTimeout(() => {
-
-        mutations.forEach(mutation => {
-
-          mutation.addedNodes.forEach(node => {
-
-            if (node.nodeType === 1) { // Element node
-
-              // Check if it's a citation button
-
-              if (node.matches && node.matches('button.citation-marker')) {
-
-                this.processCitationButton(node);
-
+        try {
+          mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+              if (node.nodeType === 1) {
+                if (node.matches && node.matches('button.citation-marker')) {
+                  if (!node.getAttribute('data-citation-processed')) {
+                    this.processCitationButton(node);
+                  }
+                }
+                const buttons = node.querySelectorAll('button.citation-marker');
+                buttons.forEach(button => {
+                  if (!button.getAttribute('data-citation-processed')) {
+                    this.processCitationButton(button);
+                  }
+                });
               }
-
-              
-
-              // Check for citation buttons in children
-
-              const buttons = node.querySelectorAll('button.citation-marker');
-
-              buttons.forEach(button => this.processCitationButton(button));
-
-            }
-
+            });
           });
-
-        });
-
-        
-
-        this.isProcessing = false;
-
+        } finally {
+          this.isProcessing = false;
+        }
       }, 100);
 
     });
@@ -853,6 +839,20 @@ class NotebookLMCitationMapper {
     document.getElementById('close-legend').addEventListener('click', () => legendContainer.remove());
   }
 
+  copyText(text) {
+    return navigator.clipboard.writeText(text).catch(() => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    });
+  }
+
   // Copy mapping to clipboard
   copyMappingToClipboard(useManual = false) {
     let text = 'Citation Mapping Legend\n';
@@ -877,52 +877,12 @@ class NotebookLMCitationMapper {
       text += `Citation ${citation} -> ${filename}\n`;
     });
 
-    navigator.clipboard.writeText(text).then(() => {
+    this.copyText(text).then(() => {
       alert('Mapping copied to clipboard!');
     }).catch(err => {
       console.error('Failed to copy:', err);
       alert('Failed to copy to clipboard. Check console for details.');
     });
-  }
-
-  // Copy mapping to clipboard
-
-  copyMappingToClipboard() {
-
-    let text = 'Citation Mapping Legend\n';
-
-    text += '=====================\n\n';
-
-    
-
-    const sortedCitations = Array.from(this.citationMap.entries())
-
-      .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
-
-    
-
-    sortedCitations.forEach(([citation, sourceInfo]) => {
-
-      const filename = sourceInfo.filename || 'Unknown';
-
-      text += `Citation ${citation} -> ${filename}\n`;
-
-    });
-
-    
-
-    navigator.clipboard.writeText(text).then(() => {
-
-      alert('Mapping copied to clipboard!');
-
-    }).catch(err => {
-
-      console.error('Failed to copy:', err);
-
-      alert('Failed to copy to clipboard. Check console for details.');
-
-    });
-
   }
 
   // Setup message listener for communication with popup/background
