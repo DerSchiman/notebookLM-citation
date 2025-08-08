@@ -54,27 +54,38 @@ class NotebookLMCitationMapper {
 
   // Scan the page for citation buttons
 
-  scanForCitations() {
+  async scanForCitations() {
 
-    const citationButtons = document.querySelectorAll('button.citation-marker');
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+    try {
+      let citationButtons = Array.from(document.querySelectorAll('button.citation-marker, button[class*="citation"]'));
+      if (citationButtons.length === 0) {
+        citationButtons = Array.from(document.querySelectorAll('button')).filter(btn => {
+          const txt = btn.textContent.trim();
+          return /^\d+$/.test(txt);
+        });
+      }
 
-    console.log(`Found ${citationButtons.length} citation buttons`);
+      console.log(`Found ${citationButtons.length} citation buttons`);
 
-    
-
-    citationButtons.forEach(button => {
-
-      this.processCitationButton(button);
-
-    });
+      for (const button of citationButtons) {
+        if (button.getAttribute('data-citation-processed') === 'true') continue;
+        await this.processCitationButton(button);
+      }
+    } finally {
+      this.isProcessing = false;
+    }
 
   }
 
   // Process individual citation button
 
-  processCitationButton(button) {
+  async processCitationButton(button) {
 
     try {
+
+      if (button.getAttribute('data-citation-processed') === 'true') return;
 
       // Extract visible citation number
 
@@ -82,19 +93,24 @@ class NotebookLMCitationMapper {
 
       if (!citationSpan) return;
 
-      
+
 
       const citationNumber = citationSpan.textContent.trim();
 
       if (!citationNumber) return;
 
-      
+
 
       // Try multiple approaches to get Angular data
 
-      const sourceInfo = this.extractSourceInfoFromButton(button);
+      let sourceInfo = this.extractSourceInfoFromButton(button);
 
-      
+      if (!sourceInfo) {
+        const filename = await this.extractSourceFromDialog(button);
+        if (filename) {
+          sourceInfo = { filename, type: 'dialog' };
+        }
+      }
 
       if (sourceInfo) {
 
@@ -104,11 +120,13 @@ class NotebookLMCitationMapper {
 
       } else {
 
+        this.citationMap.set(citationNumber, { filename: 'Unknown', type: 'unmapped' });
+
         console.warn(`Could not extract source info for citation ${citationNumber}`);
 
       }
 
-      
+
 
       // Add custom data attribute for easier tracking
 
@@ -116,7 +134,7 @@ class NotebookLMCitationMapper {
 
       button.setAttribute('data-citation-number', citationNumber);
 
-      
+
 
     } catch (error) {
 
@@ -486,6 +504,67 @@ class NotebookLMCitationMapper {
 
   }
 
+  // Open citation dialog and extract filename
+  async extractSourceFromDialog(button) {
+    button.click();
+    const panel = await this.waitForElement('div[role="dialog"], div[role="presentation"], div[aria-label*="Quelle"], div[aria-label*="Source"]', 1500);
+    let filename = null;
+    if (panel) {
+      const sourceDiv = panel.querySelector('div.source-title');
+      if (sourceDiv && sourceDiv.textContent.trim().length > 0) {
+        filename = sourceDiv.textContent.trim();
+      } else {
+        let sourceTitle = null;
+        const firstBtn = panel.querySelector('button');
+        if (firstBtn && firstBtn.textContent.trim().length > 0) {
+          sourceTitle = firstBtn.textContent.trim();
+        }
+        if (!sourceTitle) {
+          const firstDiv = Array.from(panel.querySelectorAll('div,span')).find(el => el.textContent && el.textContent.trim().length > 0);
+          if (firstDiv) sourceTitle = firstDiv.textContent.trim();
+        }
+        if (!sourceTitle && panel.firstChild && panel.firstChild.textContent) {
+          sourceTitle = panel.firstChild.textContent.trim();
+        }
+        if (sourceTitle) {
+          filename = sourceTitle;
+        }
+      }
+    }
+    await this.closeSourcePanel();
+    await new Promise(res => setTimeout(res, 200));
+    return filename;
+  }
+
+  waitForElement(selector, timeout = 2000) {
+    return new Promise(resolve => {
+      const el = document.querySelector(selector);
+      if (el) return resolve(el);
+      const observer = new MutationObserver(() => {
+        const el = document.querySelector(selector);
+        if (el) {
+          observer.disconnect();
+          resolve(el);
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => {
+        observer.disconnect();
+        resolve(null);
+      }, timeout);
+    });
+  }
+
+  async closeSourcePanel() {
+    const closeBtn = document.querySelector('button[aria-label="Schließen"], button[aria-label="Close"], button[aria-label*="schließen" i], button[aria-label*="close" i]');
+    if (closeBtn) {
+      closeBtn.click();
+    } else {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    }
+    await new Promise(res => setTimeout(res, 200));
+  }
+
   // Scan for source documents list
 
   scanForSourceDocuments() {
@@ -645,45 +724,30 @@ class NotebookLMCitationMapper {
     this.observer = new MutationObserver((mutations) => {
 
       if (this.isProcessing) return;
-
-      
-
       this.isProcessing = true;
 
       setTimeout(() => {
-
-        mutations.forEach(mutation => {
-
-          mutation.addedNodes.forEach(node => {
-
-            if (node.nodeType === 1) { // Element node
-
-              // Check if it's a citation button
-
-              if (node.matches && node.matches('button.citation-marker')) {
-
-                this.processCitationButton(node);
-
+        try {
+          mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+              if (node.nodeType === 1) {
+                if (node.matches && node.matches('button.citation-marker')) {
+                  if (!node.getAttribute('data-citation-processed')) {
+                    this.processCitationButton(node);
+                  }
+                }
+                const buttons = node.querySelectorAll('button.citation-marker');
+                buttons.forEach(button => {
+                  if (!button.getAttribute('data-citation-processed')) {
+                    this.processCitationButton(button);
+                  }
+                });
               }
-
-              
-
-              // Check for citation buttons in children
-
-              const buttons = node.querySelectorAll('button.citation-marker');
-
-              buttons.forEach(button => this.processCitationButton(button));
-
-            }
-
+            });
           });
-
-        });
-
-        
-
-        this.isProcessing = false;
-
+        } finally {
+          this.isProcessing = false;
+        }
       }, 100);
 
     });
@@ -853,6 +917,20 @@ class NotebookLMCitationMapper {
     document.getElementById('close-legend').addEventListener('click', () => legendContainer.remove());
   }
 
+  copyText(text) {
+    return navigator.clipboard.writeText(text).catch(() => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    });
+  }
+
   // Copy mapping to clipboard
   copyMappingToClipboard(useManual = false) {
     let text = 'Citation Mapping Legend\n';
@@ -877,52 +955,12 @@ class NotebookLMCitationMapper {
       text += `Citation ${citation} -> ${filename}\n`;
     });
 
-    navigator.clipboard.writeText(text).then(() => {
+    this.copyText(text).then(() => {
       alert('Mapping copied to clipboard!');
     }).catch(err => {
       console.error('Failed to copy:', err);
       alert('Failed to copy to clipboard. Check console for details.');
     });
-  }
-
-  // Copy mapping to clipboard
-
-  copyMappingToClipboard() {
-
-    let text = 'Citation Mapping Legend\n';
-
-    text += '=====================\n\n';
-
-    
-
-    const sortedCitations = Array.from(this.citationMap.entries())
-
-      .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
-
-    
-
-    sortedCitations.forEach(([citation, sourceInfo]) => {
-
-      const filename = sourceInfo.filename || 'Unknown';
-
-      text += `Citation ${citation} -> ${filename}\n`;
-
-    });
-
-    
-
-    navigator.clipboard.writeText(text).then(() => {
-
-      alert('Mapping copied to clipboard!');
-
-    }).catch(err => {
-
-      console.error('Failed to copy:', err);
-
-      alert('Failed to copy to clipboard. Check console for details.');
-
-    });
-
   }
 
   // Setup message listener for communication with popup/background

@@ -1,6 +1,22 @@
 // NotebookLM Citation Source Mapper Content Script
 
 (function () {
+  let isMapping = false;
+
+  function copyText(text) {
+    return navigator.clipboard.writeText(text).catch(() => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    });
+  }
+
   // Utility: Create or update the legend overlay
   function showLegendOverlay(legendText) {
     let overlay = document.getElementById('notebooklm-citation-legend');
@@ -26,9 +42,7 @@
       const copyBtn = document.createElement('button');
       copyBtn.textContent = 'Kopieren';
       copyBtn.style.marginTop = '10px';
-      copyBtn.onclick = function () {
-        navigator.clipboard.writeText(legendText);
-      };
+      copyBtn.onclick = () => copyText(legendText);
       overlay.appendChild(copyBtn);
 
       // Legend text
@@ -43,28 +57,30 @@
       // Update legend text
       const legendPre = overlay.querySelector('#notebooklm-citation-legend-text');
       if (legendPre) legendPre.textContent = legendText;
-    }
-  }
 
-  // Utility: Try to extract Angular context from a DOM element
-  function getAngularContext(el) {
-    // Try common Angular context property names
-    for (const key of Object.keys(el)) {
-      if (key.startsWith('__ngContext__')) {
-        return el[key];
-      }
+      // Update copy handler with new legend text
+      const copyBtn = overlay.querySelector('button');
+      if (copyBtn) copyBtn.onclick = () => copyText(legendText);
     }
-    return null;
   }
 
 
   // Main: Map citations to sources
   async function mapCitations() {
-    // 1. Find all citation buttons
-    const buttons = document.querySelectorAll('button.citation-marker');
-    const citationMap = [];
-    const citationToSource = {};
-
+    if (isMapping) return;
+    isMapping = true;
+    try {
+    // 1. Find all citation buttons (broader selector to handle UI changes)
+    const buttons = Array.from(document.querySelectorAll('button.citation-marker'))
+      .concat(Array.from(document.querySelectorAll('button[class*="citation"]')))
+      .concat(
+        Array.from(document.querySelectorAll('button')).filter(btn => {
+          const txt = btn.textContent.trim();
+          return /^\d+$/.test(txt);
+        })
+      );
+    const citationEntries = [];
+    
     // Helper: Wait for element matching selector to appear
     function waitForElement(selector, timeout = 2000) {
       return new Promise((resolve) => {
@@ -86,10 +102,19 @@
     }
 
     // Helper: Close the source panel if possible
-    function closeSourcePanel() {
+    async function closeSourcePanel() {
       // Try to find a close button in the panel
-      const closeBtn = document.querySelector('button[aria-label="Schließen"], button[aria-label="Close"]');
-      if (closeBtn) closeBtn.click();
+      const closeBtn = document.querySelector(
+        'button[aria-label="Schließen"], button[aria-label="Close"], button[aria-label*="schließen" i], button[aria-label*="close" i]'
+      );
+      if (closeBtn) {
+        closeBtn.click();
+      } else {
+        // Fallback: press Escape to close dialog
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      }
+      // Wait for panel to disappear
+      await new Promise(res => setTimeout(res, 200));
     }
 
     // Schritt für Schritt: Für jede eindeutige Zitatnummer nur den ersten Button klicken und Überschrift extrahieren
@@ -132,10 +157,10 @@
           }
         }
       }
-      closeSourcePanel();
-      await new Promise(res => setTimeout(res, 300));
+      await closeSourcePanel();
+      await new Promise(res => setTimeout(res, 200));
 
-      citationMap.push({
+      citationEntries.push({
         citationNumber,
         sourceInfo: filename,
       });
@@ -143,7 +168,7 @@
 
     // Build legend text: Nur eindeutige Zitatnummern, sortiert
     const uniqueCitations = {};
-    for (const entry of citationMap) {
+    for (const entry of citationEntries) {
       uniqueCitations[entry.citationNumber] = entry.sourceInfo;
     }
     const sortedCitationNumbers = Object.keys(uniqueCitations)
@@ -165,6 +190,9 @@
 
     // Show legend overlay
     showLegendOverlay(legendText);
+    } finally {
+      isMapping = false;
+    }
   }
 
   // Observe DOM for dynamic content
@@ -175,7 +203,9 @@
         clearTimeout(window.__notebooklmCitationLegendTimeout);
       }
       window.__notebooklmCitationLegendTimeout = setTimeout(() => {
-        mapCitations();
+        if (!isMapping) {
+          mapCitations();
+        }
       }, 500);
     });
     observer.observe(document.body, {

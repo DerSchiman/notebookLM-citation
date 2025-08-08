@@ -7,6 +7,7 @@
     let shadowRoot = null;
     let isEnabled = true;
     let observer = null;
+    let isScanning = false;
     
     // Load settings from storage
     chrome.storage.local.get(['enabled', 'customNames'], (result) => {
@@ -149,7 +150,9 @@
     }
     
     function scanForCitations() {
-        if (!isEnabled) return;
+        if (!isEnabled || isScanning) return;
+        isScanning = true;
+        try {
         
         const newCitationMap = {};
         
@@ -276,6 +279,8 @@
         
         updateLegend();
         saveCitationMap();
+    } finally {
+        isScanning = false;
     }
     
     function extractAngularContext(element) {
@@ -512,74 +517,52 @@
         }).join('');
     }
     
-    function setupCopyListener() {
-        // Use capture phase to run before NotebookLM's handlers
-        document.addEventListener('copy', handleCopyEvent, true);
-        
-        // Also add a regular listener as backup
-        document.addEventListener('copy', handleCopyEvent, false);
-        
-        // Intercept clipboard API directly
-        const originalWriteText = navigator.clipboard.writeText;
-        navigator.clipboard.writeText = function(text) {
-            const enhancedText = enhanceTextWithCitations(text);
-            console.log('Intercepted clipboard.writeText:', { original: text, enhanced: enhancedText });
-            return originalWriteText.call(this, enhancedText);
-        };
-    }
-    
-    function handleCopyEvent(event) {
-        if (!isEnabled) return;
-        
-        const selection = window.getSelection();
-        const originalText = selection.toString();
-        
-        if (!originalText.trim()) return;
-        
-        console.log('Copy event triggered. Original text:', originalText);
-        console.log('Available citations:', Object.keys(citationMap));
-        
-        const enhancedText = enhanceTextWithCitations(originalText);
-        const foundCitations = extractCitationsFromText(originalText);
-        
-        // Try multiple methods to set clipboard
+    function copyEnhancedText(text) {
         try {
-            // Method 1: event.clipboardData
-            if (event.clipboardData) {
-                event.clipboardData.setData('text/plain', enhancedText);
-                event.preventDefault();
-                event.stopPropagation();
-                event.stopImmediatePropagation();
-            }
-            
-            // Method 2: Write to clipboard API directly with delay
-            setTimeout(() => {
-                navigator.clipboard.writeText(enhancedText).then(() => {
-                    console.log('Successfully wrote enhanced text to clipboard via API');
-                }).catch(err => {
-                    console.log('Clipboard API failed:', err);
-                });
-            }, 50);
-            
-            // Method 3: Create hidden textarea and copy from there
-            setTimeout(() => {
+            return navigator.clipboard.writeText(text).catch(() => {
                 const textarea = document.createElement('textarea');
-                textarea.value = enhancedText;
+                textarea.value = text;
                 textarea.style.position = 'fixed';
                 textarea.style.opacity = '0';
-                textarea.style.pointerEvents = 'none';
                 document.body.appendChild(textarea);
+                textarea.focus();
                 textarea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
-                console.log('Fallback copy method executed');
-            }, 100);
-            
+            });
         } catch (error) {
-            console.error('Copy enhancement failed:', error);
+            console.error('Clipboard copy failed:', error);
         }
-        
-        // Show notification
+    }
+
+    function setupCopyListener() {
+        document.addEventListener('copy', handleCopyEvent, true);
+        document.addEventListener('copy', handleCopyEvent, false);
+
+        const originalWriteText = navigator.clipboard.writeText.bind(navigator.clipboard);
+        navigator.clipboard.writeText = (text) => {
+            const enhancedText = enhanceTextWithCitations(text);
+            console.log('Intercepted clipboard.writeText:', { original: text, enhanced: enhancedText });
+            return copyEnhancedText(enhancedText);
+        };
+    }
+
+    function handleCopyEvent(event) {
+        if (!isEnabled) return;
+
+        const selection = window.getSelection();
+        const originalText = selection.toString();
+        if (!originalText.trim()) return;
+
+        const enhancedText = enhanceTextWithCitations(originalText);
+        const foundCitations = extractCitationsFromText(originalText);
+
+        if (event.clipboardData) {
+            event.clipboardData.setData('text/plain', enhancedText);
+            event.preventDefault();
+        }
+        copyEnhancedText(enhancedText);
+
         showNotification(`${foundCitations.length} Quellenangaben hinzugefügt`);
     }
     
@@ -618,26 +601,7 @@
     
     // Helper function to escape special regex characters
     function escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\    function enhanceTextWithCitations(originalText) {
-        const foundCitations = extractCitationsFromText(originalText);
-        let enhancedText = originalText;
-        
-        // Replace citation numbers with source names
-        foundCitations.forEach(citation => {
-            const regex = new RegExp(`\\b${citation.num}\\b`, 'g');
-            enhancedText = enhancedText.replace(regex, `[${citation.name}]`);
-        });
-        
-        // Add source list at the end if citations were found
-        if (foundCitations.length > 0) {
-            enhancedText += '\n\nQuellen:\n' + 
-                foundCitations.map(c => `[${c.num}] ${c.name}`).join('\n');
-            
-            console.log(`Enhanced text with ${foundCitations.length} citations`);
-        }
-        
-        return enhancedText;
-    }');
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
     
     function extractCitationsFromText(originalText) {
