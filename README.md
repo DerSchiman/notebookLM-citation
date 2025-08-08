@@ -19,7 +19,7 @@ This repository contains three different Chrome extensions for Google NotebookLM
 - Maps citation numbers to source filenames in NotebookLM.
 - Provides a popup UI for user interaction.
 - Uses a background worker for logic.
-- Focuses on mapping and UI, but with fewer features than notebooklmExtension.
+- Automatically expands hidden citation lists and shows a movable, minimisable legend overlay for copying mappings.
 
 ## Installation
 
