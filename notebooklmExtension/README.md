@@ -1,22 +1,17 @@
-# notebooklmExtension
+# NotebookLM Citation Extension
 
-## What was attempted
+This Chrome extension enhances Google NotebookLM by automatically mapping citation numbers to their source filenames and presenting the results in a convenient overlay.
 
-This Chrome extension was designed to enhance Google NotebookLM by adding a live citation legend and exporting mapped citations when copying text. The goal was to make it easier to track which citation numbers correspond to which source documents, and to provide a user-friendly popup interface for managing citations.
+## Features
 
-## How it works
+- Expands hidden citation groups to reveal every source.
+- Parses `aria-label` spans to pair citation numbers with document titles.
+- Displays a draggable, minimizable legend with a copy-to-clipboard button.
 
-- Injects a live citation legend into the NotebookLM interface.
-- When you copy text, it attempts to export the citation mapping alongside the copied content.
-- Includes a popup UI for user interaction and settings.
-- Uses a background worker for additional logic and state management.
+## Usage
 
-## Weaknesses / Why it doesn't fully work
+1. Load the extension in Chrome via `chrome://extensions`.
+2. Open [notebooklm.google.com](https://notebooklm.google.com).
+3. The legend appears automatically and updates as citations change.
 
-- The extension struggles to reliably extract and map citation numbers to their correct source files, especially when NotebookLM's DOM structure changes.
-- The export functionality is inconsistent and may not always include the correct citation mapping.
-- The UI sometimes fails to update in real time, depending on how NotebookLM loads or updates its content.
-- The logic for detecting and mapping citations is fragile and breaks if Google changes the page layout or class names.
-- No robust error handling for edge cases or unexpected page states.
-
-**Status:** Experimental and not fully functional. Needs significant improvements to reliably map and export citations.
+**Status:** Experimental but functional for collecting citation mappings.

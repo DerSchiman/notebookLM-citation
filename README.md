@@ -1,25 +1,11 @@
-# NotebookLM Citation Extensions
+# NotebookLM Citation Extension
 
-This repository contains three different Chrome extensions for Google NotebookLM, each aiming to improve or automate citation mapping and management.
+This repository provides a single Chrome extension that automatically maps citation numbers in Google NotebookLM to their corresponding source files.
 
-## Overview
-
-### notebooklmExtension
-- Adds a live citation legend to NotebookLM.
-- Exports mapped citations when copying text.
-- Includes a popup UI for user interaction.
-- Uses a background worker for additional logic.
-
-### v2NotebooklmCitations
-- Maps citation numbers to full source filenames.
-- Displays a simple mapping legend directly on the page.
-- Minimalist: only uses a content script, no popup or background worker.
-
-### v3NotebooklmCitations
-- Maps citation numbers to source filenames in NotebookLM.
-- Provides a popup UI for user interaction.
-- Uses a background worker for logic.
-- Focuses on mapping and UI, but with fewer features than notebooklmExtension.
+## Features
+- Expands hidden citation groups to reveal every reference on the page.
+- Parses `aria-label` spans to map citation numbers to PDF titles.
+- Displays a draggable, minimizable legend with a one-click copy button.
 
 ## Installation
 
@@ -29,14 +15,13 @@ This repository contains three different Chrome extensions for Google NotebookLM
    ```
 2. Open Chrome and go to `chrome://extensions/`.
 3. Enable "Developer mode" (top right).
-4. Click "Load unpacked" and select one of the extension folders (`notebooklmExtension`, `v2NotebooklmCitations`, or `v3NotebooklmCitations`).
+4. Click "Load unpacked" and select the `notebooklmExtension` folder.
 
 ## Usage
 
-- Each extension targets [notebooklm.google.com](https://notebooklm.google.com).
-- See the folder README or code comments for details on how each extension works.
-- For more information, see `citation_systems_summary.txt` and `reddit_post_draft.txt`.
+- Navigate to [notebooklm.google.com](https://notebooklm.google.com) with the extension loaded.
+- The citation legend will appear automatically and update as citations change.
 
 ## Contributing
 
-If you have expertise in Chrome extension development or citation mapping, feel free to open issues or submit pull requests. Any help to make these extensions more robust and user-friendly is highly appreciated!
+Issues and pull requests are welcome. Enhancements that improve mapping accuracy or usability are appreciated.
